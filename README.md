@@ -92,7 +92,7 @@ These indicators were used to flag financially unstable or disengaging customers
 
 
 ## Tools & Technologies
-- **SQL**: (database implementation to be added)
+- **SQL**:PostgreSQL
 - **Microsoft Excel**: Data transformation and aggregation
 - **Data Visualization**: Excel charts and dashboard design
 - **GitHub** for version control
@@ -114,6 +114,7 @@ The dashboard provides a high-level executive summary and detailed behavioral an
 ---
 ## SQL Query Examples
 - Customer segmentation calculation:
+
 WITH customer_base AS (
 SELECT 
 "AccountID",
@@ -130,11 +131,11 @@ GROUP BY "AccountID"
 )
 
 SELECT 
-    customer_segment,
-    COUNT("AccountID") AS customer_count,
-    ROUND(AVG(total_spent)::numeric, 2) AS avg_lifetime_value,
-    ROUND(AVG(total_orders)::numeric, 1) AS avg_purchase_frequency,
-    ROUND(AVG(CURRENT_DATE - last_active::date)::numeric, 0) AS avg_days_since_last_purchase
+customer_segment,
+COUNT("AccountID") AS customer_count,
+ROUND(AVG(total_spent)::numeric, 2) AS avg_lifetime_value,
+ROUND(AVG(total_orders)::numeric, 1) AS avg_purchase_frequency,
+ROUND(AVG(CURRENT_DATE - last_active::date)::numeric, 0) AS avg_days_since_last_purchase
 FROM customer_base
 GROUP BY customer_segment
 ORDER BY avg_lifetime_value DESC;
@@ -142,46 +143,46 @@ ORDER BY avg_lifetime_value DESC;
 **Purpose**:
 Classifies customers into VIP, Regular, and Occasional segments based on total transaction value and calculates key behavioral metrics for each group.
 
-- -Monthly transaction aggregation: 
+- Monthly transaction aggregation: 
 
 WITH monthly_activity AS (
-    SELECT
-        DATE_TRUNC('month', "TransactionDate") AS activity_month,
-        COUNT(DISTINCT "AccountID") AS active_customers,
-        ROUND(SUM("AccountBalance")::numeric, 2) AS total_monthly_balance
-    FROM "Customer_Data"
-    GROUP BY 1
+SELECT
+DATE_TRUNC('month', "TransactionDate") AS activity_month,
+COUNT(DISTINCT "AccountID") AS active_customers,
+ROUND(SUM("AccountBalance")::numeric, 2) AS total_monthly_balance
+FROM "Customer_Data"
+GROUP BY 1
 ),
 mom_comparison AS (
-    SELECT
-        activity_month,
-        active_customers,
-        LAG(active_customers, 1) OVER (ORDER BY activity_month) AS prev_month_customers
-    FROM monthly_activity
+SELECT
+activity_month,
+active_customers,
+LAG(active_customers, 1) OVER (ORDER BY activity_month) AS prev_month_customers
+FROM monthly_activity
 )
 
 SELECT
-    activity_month,
-    active_customers,
-    prev_month_customers,
-    ROUND(
-        ((active_customers - prev_month_customers)::numeric / prev_month_customers) * 100,
-        2
-    ) AS mom_growth_rate_pct
+activity_month,
+active_customers,
+prev_month_customers,
+ROUND(
+((active_customers - prev_month_customers)::numeric / prev_month_customers) * 100,
+2
+) AS mom_growth_rate_pct
 FROM mom_comparison
 ORDER BY activity_month DESC;
 
 **Purpose**: Aggregates monthly customer activity and calculates month-over-month growth to identify seasonal trends and engagement changes.
 
---Volatitly and churn risk identification:
+- Volatitly and churn risk identification:
 
 WITH balance_snapshots AS (
-    SELECT
-        "AccountID",
-        "TransactionDate",
-        "AccountBalance",
-        LAG("AccountBalance") OVER (PARTITION BY "AccountID" ORDER BY "TransactionDate") AS previous_balance
-    FROM "Customer_Data"
+SELECT
+"AccountID",
+"TransactionDate",
+"AccountBalance",
+LAG("AccountBalance") OVER (PARTITION BY "AccountID" ORDER BY "TransactionDate") AS previous_balance
+FROM "Customer_Data"
 ),
 balance_drops AS (
     SELECT
@@ -199,7 +200,7 @@ GROUP BY "AccountID"
 HAVING COUNT(drop_amount) >= 3 -- Flag customers who experienced 3+ large drops recently
 ORDER BY frequent_large_drops_count DESC;
 
-**Purpose**:Identifies customers with repeated large balance drops as potential churn or financial risk candidates.
+**Purpose**: Identifies customers with repeated large balance drops as potential churn or financial risk candidates.
 
 ---
 ## Business Recommendations
