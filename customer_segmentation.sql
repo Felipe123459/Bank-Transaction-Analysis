@@ -65,3 +65,63 @@ FROM "Customer_Data"
 GROUP BY spending_month, "AccountID" 
 HAVING COUNT("TransactionID") >= 2
 ORDER BY spending_month DESC, avg_ticket_size DESC
+
+Query 5: 
+
+WITH max_date_ref AS (
+  SELECT MAX("TransactionDate") as latest_file_date FROM "Customer_Data"
+),
+customer_metrics AS (
+    SELECT
+        "AccountID",
+        MAX("TransactionDate") as last_active,
+        COUNT("TransactionID") as total_txns,
+        AVG("AccountBalance") as avg_balance,
+        -- Calculate the slope of the balance (Latest vs Average)
+        -- Positive means they are saving; Negative means they are depleting
+        (LAST_VALUE("AccountBalance") OVER (PARTITION BY "AccountID" ORDER BY "TransactionDate" 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) - AVG("AccountBalance") OVER (PARTITION BY "AccountID")) as balance_trend
+    FROM "Customer_Data"
+    GROUP BY "AccountID", "TransactionDate", "AccountBalance"
+),
+final_metrics AS (
+    SELECT 
+        "AccountID",
+        MAX(last_active) as last_active,
+        COUNT(total_txns) as txn_count,
+        AVG(avg_balance) as avg_balance,
+        AVG(balance_trend) as balance_trend
+    FROM customer_metrics
+    GROUP BY "AccountID"
+)
+SELECT
+    f."AccountID",
+    -- 1. Recency Score (Max 40 points)
+    CASE 
+        WHEN (m.latest_file_date::date - f.last_active::date) <= 30 THEN 40
+        WHEN (m.latest_file_date::date - f.last_active::date) <= 90 THEN 20
+        ELSE 0
+    END AS recency_score,
+    -- 2. Activity Score (Max 30 points)
+    -- Higher transaction volume = Higher health/engagement
+    CASE 
+        WHEN f.txn_count > 50 THEN 30
+        WHEN f.txn_count > 10 THEN 15
+        ELSE 5
+    END AS activity_score,
+    -- 3. Trend Score (Max 30 points)
+    -- If their current balance is higher than their average, they get full points
+    CASE 
+        WHEN f.balance_trend >= 0 THEN 30
+        WHEN f.balance_trend < 0 AND f.balance_trend > -500 THEN 15
+        ELSE 0
+    END AS trend_score,
+    -- Total Health Score
+    (
+        CASE WHEN (m.latest_file_date::date - f.last_active::date) <= 30 THEN 40 WHEN (m.latest_file_date::date - f.last_active::date) <= 90 THEN 20 ELSE 0 END +
+        CASE WHEN f.txn_count > 50 THEN 30 WHEN f.txn_count > 10 THEN 15 ELSE 5 END +
+        CASE WHEN f.balance_trend >= 0 THEN 30 WHEN f.balance_trend < 0 AND f.balance_trend > -500 THEN 15 ELSE 0 END
+    ) AS health_score
+FROM final_metrics f
+CROSS JOIN max_date_ref m
+ORDER BY health_score DESC;
