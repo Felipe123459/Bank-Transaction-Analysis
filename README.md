@@ -92,7 +92,7 @@ These indicators were used to flag financially unstable or disengaging customers
 
 
 ## Tools & Technologies
-- **SQL**:PostgreSQL
+- **SQL**: SQLite database for data storage and analysis
 - **Microsoft Excel**: Data transformation and aggregation
 - **Data Visualization**: Excel charts and dashboard design
 - **GitHub** for version control
